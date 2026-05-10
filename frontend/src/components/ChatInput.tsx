@@ -40,7 +40,7 @@ export default function ChatInput({ onSend, disabled }: Props) {
         <textarea
           ref={textareaRef}
           className={styles.input}
-          placeholder="Ask about HR policies, benefits, people, scholarships…"
+          placeholder="Ask about the manuscript, models, error metrics, Coresignal API…"
           value={value}
           rows={1}
           disabled={disabled}

@@ -7,3 +7,6 @@ python-dotenv
 fastapi
 uvicorn[standard]
 pydantic
+pdfplumber
+python-docx
+python-pptx

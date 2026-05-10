@@ -9,6 +9,8 @@ Endpoints
 GET  /health          — liveness check
 POST /chat            — ask a question; returns answer + sources
 POST /search          — raw vector search, no LLM answer
+
+How to run: uvicorn app:app --reload
 """
 
 import os
@@ -89,13 +91,14 @@ CHITCHAT_PATTERNS = [
 ]
 
 CHITCHAT_RESPONSE = (
-    "Hi there! I'm the Bellows College HR Assistant.\n\n"
-    "I can help you find information from the Bellows College GroupHR SharePoint intranet, such as:\n\n"
-    "- Scholarships and awards (e.g. The President's Scholarship)\n"
-    "- Scholar profiles and achievements\n"
-    "- College values, policies, and programmes\n"
-    "- HR-related content published on the intranet\n\n"
-    "Just ask me anything related to Bellows College and I'll search the knowledge base for you!"
+    "👋 Hi there! I'm an MSc Research Assistant.\n\n"
+    "I can help you find information from the MSc Documents SharePoint site, including:\n\n"
+    "- The manuscript: 'Consolidating Access to Candidate Data for Recruitment Headhunting: "
+    "Leveraging Explainable Machine Learning'\n"
+    "- Literature on job recommendation systems using APIs and web crawling\n"
+    "- Literature on RMSE vs MAE error metrics\n"
+    "- Supplementary manuscript slides (More_On_Manuscript.pptx)\n\n"
+    "Just ask me anything related to the research and I'll search the knowledge base for you!"
 )
 
 
@@ -105,20 +108,20 @@ def _is_chitchat(question: str) -> bool:
 
 
 def _is_on_topic(question: str) -> bool:
-    """Ask Claude to classify whether the question is relevant to Bellows College HR content."""
+    """Ask Claude to classify whether the question is relevant to MSc research content."""
     check = claude_client.messages.create(
         model=CLAUDE_DEPLOYMENT_NAME,
         max_tokens=10,
         system=(
-            "You are a topic classifier for a college HR knowledge base. "
+            "You are a topic classifier. "
             "You only answer with YES or NO. "
-            "Answer YES if the question could plausibly be answered by a college intranet — "
-            "this includes questions about: people (students, staff, scholars, employees), "
-            "roles, classifications, achievements, awards, scholarships, policies, programmes, "
-            "departments, college values, or any named individual who may be a student or staff member. "
-            "Only answer NO if the question is clearly about something entirely unrelated to a college "
-            "or workplace, such as cooking, sports scores, weather, or general trivia. "
-            "When in doubt, answer YES."
+            "Decide if the question is relevant to any of these topics: "
+            "recruitment headhunting, explainable machine learning, candidate ranking, "
+            "TF-IDF, Ridge Regression, Gradient Boosting, Random Forest, Shapash, "
+            "Coresignal API, job recommendation systems, web crawling, APIs, "
+            "RMSE, MAE, error metrics, statistical evaluation, model performance, "
+            "MSc research, academic manuscripts, or any related data science topics. "
+            "Answer YES if relevant, NO if not."
         ),
         messages=[{"role": "user", "content": f"Is this question relevant? Question: {question}"}],
     )
@@ -141,7 +144,7 @@ def _vector_search(embedding: list[float], top_k: int) -> list[dict]:
         headers={"Content-Type": "application/json", "api-key": SEARCH_KEY},
         json={
             "count": True,
-            "select": "title,url,text,chunk_index",
+            "select": "title,url,text,chunk_index,source_type",
             "top": top_k,
             "vectorQueries": [
                 {
@@ -171,6 +174,7 @@ class Source(BaseModel):
     title: str
     url: str
     chunk_index: int
+    source_type: str
     relevance_score: float
 
 
@@ -245,10 +249,11 @@ def chat(req: ChatRequest):
         return ChatResponse(
             question=req.question,
             answer=(
-                "I'm sorry, I can only answer questions related to Bellows College "
-                "and its HR intranet content — things like scholarships, college "
-                "policies, scholar profiles, and employee information.\n\n"
-                "Is there something about Bellows College I can help you with instead?"
+                "I'm sorry, I can only answer questions related to the MSc research documents — "
+                "topics like recruitment headhunting, explainable ML, candidate ranking, "
+                "TF-IDF, regression models, error metrics (RMSE/MAE), job recommendation "
+                "systems, or the manuscript and its supporting literature.\n\n"
+                "Is there something about the research I can help you with instead?"
             ),
             response_type="off_topic",
         )
@@ -278,7 +283,8 @@ def chat(req: ChatRequest):
 
     # Step 5: build context
     context_blocks = [
-        f"[{i}] Title: {h['title']}\n    URL: {h['url']}\n    Chunk: {h['chunk_index']}\n    Content: {h['text']}"
+        f"[{i}] {'SharePoint Page' if h.get('source_type') == 'page' else 'Document'}: {h['title']}\n"
+        f"    URL: {h['url']}\n    Chunk: {h['chunk_index']}\n    Content: {h['text']}"
         for i, h in enumerate(hits, 1)
     ]
     context = "\n\n".join(context_blocks)
@@ -290,18 +296,23 @@ def chat(req: ChatRequest):
             model=CLAUDE_DEPLOYMENT_NAME,
             max_tokens=req.max_tokens,
             system=(
-                "You are a helpful HR assistant for Bellows College. "
-                "You ONLY answer questions using the provided SharePoint intranet content. "
-                "Do NOT use any external knowledge or training data to answer. "
-                "If the answer is not clearly found in the context, say so. "
-                "Do NOT include a References or Sources section at the end. "
-                "Format your responses using Markdown: use - for bullet lists, ** for bold, and proper paragraph spacing. "
-                "Tone: friendly and informative, like a knowledgeable colleague."
+                "You are a knowledgeable research assistant helping with an MSc thesis on "
+                "recruitment headhunting and explainable machine learning. "
+                "The knowledge base contains:\n"
+                "  1. An MSc manuscript on consolidating candidate data using the Coresignal API "
+                "and explainable ML (TF-IDF + Ridge/Gradient Boosting/Random Forest + Shapash)\n"
+                "  2. Literature on technical job recommendation systems using APIs and web crawling\n"
+                "  3. Literature on RMSE vs MAE error metrics\n"
+                "  4. Supplementary manuscript slides\n\n"
+                "Answer questions ONLY using the provided context from these documents. "
+                "If the answer is not in the context, say so clearly. "
+                "Do NOT include a References or Sources section at the end of your answer. "
+                "Use precise academic language appropriate for MSc-level research discussion."
             ),
             messages=[
                 {
                     "role": "user",
-                    "content": f"Context from SharePoint:\n\n{context}\n\nQuestion: {req.question}",
+                    "content": f"Context from MSc research documents:\n\n{context}\n\nQuestion: {req.question}",
                 }
             ],
         )
@@ -315,6 +326,7 @@ def chat(req: ChatRequest):
             title=h["title"],
             url=h["url"],
             chunk_index=h["chunk_index"],
+            source_type=h.get("source_type", "unknown"),
             relevance_score=round(min(h.get("@search.score", 0) * 100, 100), 2),
         )
         for h in hits

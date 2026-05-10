@@ -11,25 +11,25 @@ import logo from './assets/image.png'
 import styles from './App.module.css'
 
 const SUGGESTED = [
-  'What are the leave policies?',
-  "Who are the 2025 President's Scholars?",
-  'What employee benefits are available?',
-  "What is the President's Scholarship?",
-  'How do I submit a performance review?',
-  'What wellness programmes are offered?',
+  'Why should we use RMSE over MAE?',
+  'What models were used for candidate ranking?',
+  'What is the Coresignal API used for?',
+  'How does TF-IDF work in the manuscript?',
+  'What does Shapash do in the pipeline?',
+  'Who wrote the manuscript and what is it about?',
 ]
 
 const WELCOME: Message = {
   id: 'welcome',
   role: 'assistant',
   content:
-    "👋 Welcome! I'm your Allan & Gill Gray Foundation HR Assistant.\n\n" +
-    'I have access to your company SharePoint knowledge base and can help you with:\n\n' +
-    '- HR policies and procedures\n' +
-    '- Employee benefits and well-being\n' +
-    '- Scholarships and awards\n' +
-    '- People and profiles\n' +
-    '- Company programmes and initiatives\n\n' +
+    "👋 Welcome! I'm your MSc Research Assistant.\n\n" +
+    'I have access to the MSc Documents SharePoint knowledge base and can help you with:\n\n' +
+    '- The manuscript on recruitment headhunting and explainable ML\n' +
+    '- Candidate ranking models (TF-IDF, Ridge Regression, Gradient Boosting, Random Forest)\n' +
+    '- Explainability with Shapash\n' +
+    '- Job recommendation systems using APIs and web crawling\n' +
+    '- Error metrics: RMSE vs MAE\n\n' +
     'What would you like to know?',
   timestamp: new Date(),
 }
