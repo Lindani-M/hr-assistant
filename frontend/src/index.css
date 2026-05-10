@@ -1,0 +1,47 @@
+/* ── Allan & Gill Gray Foundation brand palette ────────────────── */
+:root {
+  --navy:        #162951;  /* primary brand navy from site */
+  --navy-dark:   #0d1f3c;  /* footer / deep navy */
+  --navy-light:  #1e3a6e;
+  --gold:        #c8a96e;  /* warm accent */
+  --gold-light:  #dfc08a;
+  --white:       #ffffff;
+  --bg:          #f4f6f9;
+  --surface:     #ffffff;
+  --surface-hover: #edf0f5;
+  --border:      #d6dce8;
+  --text:        #162951;
+  --text-muted:  #5a6a84;
+}
+
+/* ── Reset ──────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────────── */
+::-webkit-scrollbar        { width: 6px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+
+/* ── Typography helpers ─────────────────────────────────────────── */
+p { margin: 0; }
+a { color: inherit; }
+button { font-family: inherit; }

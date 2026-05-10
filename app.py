@@ -90,11 +90,11 @@ CHITCHAT_PATTERNS = [
 
 CHITCHAT_RESPONSE = (
     "Hi there! I'm the Bellows College HR Assistant.\n\n"
-    "I can help you find information from the Bellows College GroupHR SharePoint intranet, such as:\n"
-    "  • Scholarships and awards (e.g. The President's Scholarship)\n"
-    "  • Scholar profiles and achievements\n"
-    "  • College values, policies, and programmes\n"
-    "  • HR-related content published on the intranet\n\n"
+    "I can help you find information from the Bellows College GroupHR SharePoint intranet, such as:\n\n"
+    "- Scholarships and awards (e.g. The President's Scholarship)\n"
+    "- Scholar profiles and achievements\n"
+    "- College values, policies, and programmes\n"
+    "- HR-related content published on the intranet\n\n"
     "Just ask me anything related to Bellows College and I'll search the knowledge base for you!"
 )
 
@@ -295,6 +295,7 @@ def chat(req: ChatRequest):
                 "Do NOT use any external knowledge or training data to answer. "
                 "If the answer is not clearly found in the context, say so. "
                 "Do NOT include a References or Sources section at the end. "
+                "Format your responses using Markdown: use - for bullet lists, ** for bold, and proper paragraph spacing. "
                 "Tone: friendly and informative, like a knowledgeable colleague."
             ),
             messages=[
