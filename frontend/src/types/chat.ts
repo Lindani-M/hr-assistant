@@ -20,4 +20,19 @@ export interface Message {
   sources?: Source[]
   timestamp: Date
   loading?: boolean
+  isError?: boolean
+}
+
+export type ApiErrorCode =
+  | 'network'
+  | 'rate_limit'
+  | 'too_long'
+  | 'validation'
+  | 'service_unavailable'
+  | 'server_error'
+  | 'unknown'
+
+export interface ApiError {
+  code: ApiErrorCode
+  userMessage: string
 }

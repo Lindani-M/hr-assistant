@@ -17,7 +17,12 @@
 
 .bar:focus-within {
   border-color: var(--gold);
-  box-shadow: 0 0 0 3px rgba(184, 155, 84, 0.15);
+  box-shadow: 0 0 0 3px rgba(118, 104, 164, 0.18);
+}
+
+.barError {
+  border-color: #c0392b !important;
+  box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.15) !important;
 }
 
 .input {
@@ -78,4 +83,36 @@
   color: var(--text-muted);
   text-align: center;
   margin-top: 8px;
+}
+
+.warnIcon {
+  flex-shrink: 0;
+  color: #c0392b;
+  display: flex;
+  align-items: center;
+  margin-right: 2px;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 18px;
+  margin-top: 5px;
+  padding: 0 4px;
+}
+
+.counter {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  transition: color 0.2s;
+}
+
+.counterWarn {
+  color: #e67e22;
+}
+
+.counterError {
+  font-size: 0.7rem;
+  color: #c0392b;
+  font-weight: 600;
 }

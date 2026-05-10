@@ -1,13 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useIsAuthenticated, useMsal } from '@azure/msal-react'
-import { InteractionStatus } from '@azure/msal-browser'
+import { InteractionStatus, InteractionRequiredAuthError } from '@azure/msal-browser'
 import Sidebar from './components/Sidebar'
 import ChatMessage from './components/ChatMessage'
 import ChatInput from './components/ChatInput'
 import LoginPage from './components/LoginPage'
-import type { Message } from './types/chat'
+import type { Message, ApiError } from './types/chat'
 import { sendChat } from './api/chat'
-import logo from './assets/image.png'
 import styles from './App.module.css'
 
 const SUGGESTED = [
@@ -23,7 +22,7 @@ const WELCOME: Message = {
   id: 'welcome',
   role: 'assistant',
   content:
-    "👋 Welcome! I'm your MSc Research Assistant.\n\n" +
+    "👋 Welcome! I'm TalentGPT, your MSc Research Assistant.\n\n" +
     'I have access to the MSc Documents SharePoint knowledge base and can help you with:\n\n' +
     '- The manuscript on recruitment headhunting and explainable ML\n' +
     '- Candidate ranking models (TF-IDF, Ridge Regression, Gradient Boosting, Random Forest)\n' +
@@ -58,6 +57,25 @@ export default function App() {
   }, [messages])
 
   const handleSend = useCallback(async (question: string) => {
+    // Acquire a fresh access token before every request.
+    // Only redirect to login if the error is InteractionRequiredAuthError
+    // (e.g. MFA required, consent needed). All other errors let the request
+    // proceed — the backend skips auth when its env vars are not configured.
+    let accessToken = ''
+    try {
+      const result = await instance.acquireTokenSilent({
+        scopes: ['openid', 'profile', 'User.Read'],
+        account,
+      })
+      accessToken = result.accessToken
+    } catch (err) {
+      if (err instanceof InteractionRequiredAuthError) {
+        await instance.acquireTokenRedirect({ scopes: ['openid', 'profile', 'User.Read'] })
+        return
+      }
+      // Non-fatal: proceed without a token (backend will reject with 401 if auth is enforced)
+    }
+
     const userMsg: Message = {
       id: crypto.randomUUID(),
       role: 'user',
@@ -78,7 +96,7 @@ export default function App() {
     setLoading(true)
 
     try {
-      const data = await sendChat(question)
+      const data = await sendChat(question, accessToken)
       setMessages((prev) =>
         prev.map((m) =>
           m.id === loadingMsg.id
@@ -93,14 +111,13 @@ export default function App() {
         )
       )
     } catch (err) {
+      const apiErr = err as ApiError
+      const userMessage = apiErr?.userMessage
+        ?? 'Something went wrong. Please try again.'
       setMessages((prev) =>
         prev.map((m) =>
           m.id === loadingMsg.id
-            ? {
-                ...m,
-                content: '⚠️ Sorry, something went wrong. Please try again.',
-                loading: false,
-              }
+            ? { ...m, content: userMessage, loading: false, isError: true }
             : m
         )
       )
@@ -125,10 +142,9 @@ export default function App() {
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <div className={styles.headerLeft}>
-            <img src={logo} alt="Allan & Gill Gray" className={styles.headerLogo} />
             <div>
-              <h1 className={styles.headerTitle}>HR Assistant</h1>
-              <p className={styles.headerSub}>Company-wide knowledge</p>
+              <h1 className={styles.headerTitle}>TalentGPT</h1>
+              <p className={styles.headerSub}>MSc Research Assistant</p>
             </div>
           </div>
           <div className={styles.headerActions}>

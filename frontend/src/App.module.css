@@ -22,16 +22,17 @@
 /* Header */
 .header {
   background: var(--navy);
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
   padding: 0 24px;
   flex-shrink: 0;
+  box-shadow: 0 2px 14px rgba(13, 31, 60, 0.3);
 }
 
 .headerInner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 64px;
+  height: 58px;
 }
 
 .headerLeft {
@@ -40,33 +41,29 @@
   gap: 12px;
 }
 
-.headerLogo {
-  width: 44px;
-  height: 44px;
-  object-fit: cover;
-  border-radius: 8px;
-  flex-shrink: 0;
-}
-
 .headerTitle {
   font-family: 'Playfair Display', serif;
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 700;
   color: var(--white);
   margin: 0;
+  letter-spacing: -0.01em;
 }
 
 .headerSub {
-  font-size: 0.73rem;
-  color: var(--gold);
+  font-size: 0.66rem;
+  color: var(--gold-light);
   margin: 0;
-  margin-top: 1px;
+  margin-top: 2px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 500;
 }
 
 .headerActions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 /* User chip */
@@ -74,19 +71,19 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 10px 5px 6px;
-  border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 10px;
-  background: rgba(255,255,255,0.07);
+  padding: 4px 12px 4px 5px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 40px;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .userAvatar {
-  width: 28px;
-  height: 28px;
+  width: 27px;
+  height: 27px;
   border-radius: 50%;
-  background: var(--gold);
-  color: var(--navy);
-  font-size: 0.72rem;
+  background: linear-gradient(135deg, var(--gold) 0%, var(--pink) 100%);
+  color: var(--white);
+  font-size: 0.7rem;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -102,7 +99,7 @@
 }
 
 .userName {
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 600;
   color: var(--white);
   white-space: nowrap;
@@ -112,8 +109,8 @@
 }
 
 .userEmail {
-  font-size: 0.68rem;
-  color: rgba(255,255,255,0.55);
+  font-size: 0.63rem;
+  color: rgba(255, 255, 255, 0.48);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -124,23 +121,23 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 13px;
+  padding: 6px 14px;
   background: transparent;
-  border: 1px solid rgba(255,255,255,0.2);
-  border-radius: 8px;
-  font-size: 0.78rem;
-  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 40px;
+  font-size: 0.74rem;
+  font-weight: 500;
   font-family: inherit;
-  color: rgba(255,255,255,0.75);
+  color: rgba(255, 255, 255, 0.65);
   cursor: pointer;
   transition: color 0.15s, background 0.15s, border-color 0.15s;
   flex-shrink: 0;
 }
 
 .logoutBtn:hover {
-  color: #ff8a80;
-  border-color: #e8c0bd;
-  background: #fdf0ef;
+  color: var(--white);
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .clearBtn {

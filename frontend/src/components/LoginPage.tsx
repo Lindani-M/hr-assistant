@@ -20,8 +20,7 @@ export default function LoginPage() {
 
         {/* Title */}
         <div className={styles.titleBlock}>
-          <h1 className={styles.title}>HR Assistant</h1>
-          <p className={styles.subtitle}>Allan &amp; Gill Gray Foundation</p>
+          <h1 className={styles.title}>TalentGPT</h1>
         </div>
 
         {/* Divider */}
@@ -29,7 +28,7 @@ export default function LoginPage() {
 
         {/* Body copy */}
         <p className={styles.body}>
-          Sign in with your organisation account to access the HR knowledge base.
+          Sign in with your AGGPA account.
         </p>
 
         {/* Sign-in button */}
@@ -39,9 +38,6 @@ export default function LoginPage() {
         </button>
 
         {/* Footer */}
-        <p className={styles.footer}>
-          Powered by Azure AI&nbsp;&amp;&nbsp;SharePoint
-        </p>
       </div>
 
       {/* Background pattern */}

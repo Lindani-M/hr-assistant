@@ -1,15 +1,18 @@
-/* ── Allan & Gill Gray Foundation brand palette ────────────────── */
+/* ── Allan Gray Philanthropy brand palette ─────────────────────── */
 :root {
-  --navy:        #162951;  /* primary brand navy from site */
-  --navy-dark:   #0d1f3c;  /* footer / deep navy */
+  --navy:        #162951;  /* primary brand navy */
+  --navy-dark:   #0d1f3c;  /* deep navy */
   --navy-light:  #1e3a6e;
-  --gold:        #c8a96e;  /* warm accent */
-  --gold-light:  #dfc08a;
+  --navy-mid:    #2a4480;  /* lighter navy accent */
+  --gold:        #7668A4;  /* light purple — primary accent */
+  --gold-light:  #A595C8;  /* lighter purple */
+  --pink:        #C97E9F;  /* light pink — secondary accent */
+  --pink-light:  #DBA8BE;
   --white:       #ffffff;
-  --bg:          #f4f6f9;
+  --bg:          #f2f4f8;
   --surface:     #ffffff;
-  --surface-hover: #edf0f5;
-  --border:      #d6dce8;
+  --surface-hover: #eceff6;
+  --border:      #d4d9e8;
   --text:        #162951;
   --text-muted:  #5a6a84;
 }
@@ -39,7 +42,7 @@ body {
 ::-webkit-scrollbar        { width: 6px; }
 ::-webkit-scrollbar-track  { background: transparent; }
 ::-webkit-scrollbar-thumb  { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+::-webkit-scrollbar-thumb:hover { background: var(--gold-light); }
 
 /* ── Typography helpers ─────────────────────────────────────────── */
 p { margin: 0; }

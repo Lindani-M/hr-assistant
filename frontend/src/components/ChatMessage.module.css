@@ -15,32 +15,10 @@
   align-self: flex-start;
 }
 
-.avatar {
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: var(--navy);
-  color: var(--gold);
-  font-size: 0.6rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 8px rgba(13, 31, 60, 0.25);
-  margin-top: 2px;
-}
-
-.userAvatar {
-  background: var(--gold);
-  color: var(--navy);
-}
-
 .bubble {
   padding: 14px 18px;
   border-radius: 16px;
-  max-width: calc(100% - 54px);
+  max-width: 100%;
   position: relative;
 }
 
@@ -49,6 +27,22 @@
   border: 1px solid var(--border);
   border-top-left-radius: 4px;
   box-shadow: 0 2px 12px rgba(13, 31, 60, 0.07);
+}
+
+.errorBubble {
+  background: #fff5f5;
+  border: 1px solid #f5c6cb;
+  border-top-left-radius: 4px;
+  box-shadow: 0 2px 12px rgba(192, 57, 43, 0.08);
+}
+
+.errorContent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: #c0392b;
+  font-size: 0.9rem;
+  line-height: 1.55;
 }
 
 .userBubble {

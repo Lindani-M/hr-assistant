@@ -10,3 +10,5 @@ pydantic
 pdfplumber
 python-docx
 python-pptx
+slowapi
+PyJWT[crypto]>=2.8.0

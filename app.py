@@ -1,6 +1,6 @@
 """
-HR Assistant API
-----------------
+TalentGPT API
+-------------
 Provides a RAG-powered chat endpoint backed by Azure AI Search (vector store)
 and Claude (via Azure AI Foundry).
 
@@ -15,16 +15,26 @@ How to run: uvicorn app:app --reload
 
 import os
 import re
+import time
+import uuid
 import logging
+import traceback
 from typing import Optional
 
 import requests
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from openai import AzureOpenAI
 from anthropic import AnthropicFoundry
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from jwt import PyJWKClient
+import jwt as _jwt
 
 load_dotenv()
 
@@ -50,6 +60,11 @@ CLAUDE_ENDPOINT        = os.getenv("CLAUDE_ENDPOINT")
 CLAUDE_API_KEY         = os.getenv("CLAUDE_API_KEY")
 CLAUDE_DEPLOYMENT_NAME = os.getenv("CLAUDE_DEPLOYMENT_NAME")
 
+AZURE_AD_TENANT_ID = os.getenv("AZURE_AD_TENANT_ID", "")
+AZURE_AD_CLIENT_ID = os.getenv("AZURE_AD_CLIENT_ID", "")
+ALLOWED_ORIGINS    = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",") if o.strip()]
+_DEBUG             = os.getenv("DEBUG", "").lower() in ("1", "true", "yes")
+
 # ── Clients ───────────────────────────────────────────────────────────────────
 oai_client = AzureOpenAI(
     azure_endpoint=AZURE_OAI_ENDPOINT,
@@ -62,19 +77,127 @@ claude_client = AnthropicFoundry(
     base_url=CLAUDE_ENDPOINT,
 )
 
+# ── Rate limiter ─────────────────────────────────────────────────────────────
+limiter = Limiter(key_func=get_remote_address)
+
+# ── Azure AD token validation ─────────────────────────────────────────────────
+_jwks_client: PyJWKClient | None = None
+
+def _get_jwks_client() -> PyJWKClient:
+    global _jwks_client
+    if _jwks_client is None and AZURE_AD_TENANT_ID:
+        _jwks_client = PyJWKClient(
+            f"https://login.microsoftonline.com/{AZURE_AD_TENANT_ID}/discovery/v2.0/keys",
+            cache_keys=True,
+            lifespan=3600,
+        )
+    return _jwks_client
+
+
+def require_auth(request: Request) -> None:
+    """FastAPI dependency: validate the Azure AD Bearer token."""
+    if not AZURE_AD_TENANT_ID or not AZURE_AD_CLIENT_ID:
+        logger.warning("Auth validation skipped — AZURE_AD_TENANT_ID / AZURE_AD_CLIENT_ID not configured")
+        return
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Unauthorised.")
+    token = auth_header[7:]
+    try:
+        signing_key = _get_jwks_client().get_signing_key_from_jwt(token)
+        payload = _jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=["RS256"],
+            options={"verify_aud": False},
+        )
+    except _jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Unauthorised.")
+    except _jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Unauthorised.")
+    except Exception as exc:
+        logger.error("Token validation error: %s", exc)
+        raise HTTPException(status_code=401, detail="Unauthorised.")
+    # Verify the token belongs to our tenant
+    if payload.get("tid") != AZURE_AD_TENANT_ID:
+        raise HTTPException(status_code=401, detail="Unauthorised.")
+    # If the token carries an app-ID claim, verify it was issued to our app
+    token_client = payload.get("azp") or payload.get("appid")
+    if token_client and token_client != AZURE_AD_CLIENT_ID:
+        raise HTTPException(status_code=401, detail="Unauthorised.")
+
+
 # ── FastAPI app ───────────────────────────────────────────────────────────────
 app = FastAPI(
-    title="HR Assistant API",
-    description="RAG-powered HR assistant backed by SharePoint → Azure AI Search → Claude.",
+    title="TalentGPT API",
+    description="RAG-powered research assistant backed by SharePoint → Azure AI Search → Claude.",
     version="1.0.0",
+    docs_url="/docs" if _DEBUG else None,
+    redoc_url="/redoc" if _DEBUG else None,
+    openapi_url="/openapi.json" if _DEBUG else None,
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+# ── Request-ID middleware ──────────────────────────────────────────────────────────
+@app.middleware("http")
+async def attach_request_id(request: Request, call_next):
+    rid = str(uuid.uuid4())[:8]
+    request.state.rid = rid
+    start = time.perf_counter()
+    response = await call_next(request)
+    elapsed = (time.perf_counter() - start) * 1000
+    response.headers["X-Request-ID"] = rid
+    logger.info(
+        "[%s] %s %s → %d (%.0fms)",
+        rid, request.method, request.url.path, response.status_code, elapsed,
+    )
+    return response
+
+
+# ── Global error handlers ──────────────────────────────────────────────────────────────
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    rid = getattr(request.state, "rid", "-")
+    errors = exc.errors()
+    logger.warning("[%s] 422 Validation error: %s", rid, errors)
+    # Return a single human-readable detail instead of Pydantic's raw list
+    messages = "; ".join(
+        f"{' → '.join(str(l) for l in e['loc'] if l != 'body')}: {e['msg']}"
+        for e in errors
+    )
+    return JSONResponse(status_code=422, content={"detail": messages})
+
+
+@app.exception_handler(Exception)
+async def unhandled_error_handler(request: Request, exc: Exception):
+    rid = getattr(request.state, "rid", "-")
+    logger.error(
+        "[%s] Unhandled exception on %s %s\n%s",
+        rid, request.method, request.url.path, traceback.format_exc(),
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "An unexpected server error occurred. Please try again shortly."},
+    )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "Authorization"],
 )
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CHITCHAT
@@ -91,7 +214,7 @@ CHITCHAT_PATTERNS = [
 ]
 
 CHITCHAT_RESPONSE = (
-    "👋 Hi there! I'm an MSc Research Assistant.\n\n"
+    "👋 Hi there! I'm TalentGPT, your MSc Research Assistant.\n\n"
     "I can help you find information from the MSc Documents SharePoint site, including:\n\n"
     "- The manuscript: 'Consolidating Access to Candidate Data for Recruitment Headhunting: "
     "Leveraging Explainable Machine Learning'\n"
@@ -165,9 +288,9 @@ def _vector_search(embedding: list[float], top_k: int) -> list[dict]:
 # ══════════════════════════════════════════════════════════════════════════════
 
 class ChatRequest(BaseModel):
-    question: str = Field(..., min_length=1, description="The question to ask the HR assistant.")
-    top_k: Optional[int] = Field(5, ge=1, le=20, description="Number of document chunks to retrieve from the vector store (1–20).")
-    max_tokens: Optional[int] = Field(1500, ge=100, le=15000, description="Maximum tokens for the Claude response.")
+    question: str = Field(..., min_length=1, max_length=2000, description="The question to ask TalentGPT (max 2000 characters).")
+    top_k: Optional[int] = Field(5, ge=1, le=10, description="Number of document chunks to retrieve (1–10).")
+    max_tokens: Optional[int] = Field(1500, ge=100, le=4000, description="Maximum tokens for the Claude response (100–4000).")
 
 
 class Source(BaseModel):
@@ -186,8 +309,8 @@ class ChatResponse(BaseModel):
 
 
 class SearchRequest(BaseModel):
-    query: str = Field(..., min_length=1, description="The text query to embed and search against the vector store.")
-    top_k: Optional[int] = Field(5, ge=1, le=20, description="Number of results to return (1–20).")
+    query: str = Field(..., min_length=1, max_length=2000, description="The text query to embed and search (max 2000 characters).")
+    top_k: Optional[int] = Field(5, ge=1, le=10, description="Number of results to return (1–10).")
 
 
 class SearchResult(BaseModel):
@@ -214,9 +337,10 @@ def health():
 
 
 @app.post("/chat", response_model=ChatResponse, tags=["RAG"])
-def chat(req: ChatRequest):
+@limiter.limit("20/minute")
+def chat(req: ChatRequest, request: Request, _: None = Depends(require_auth)):
     """
-    Ask a question to the HR assistant.
+    Ask a question to TalentGPT.
 
     **Flow**
     1. If the message is chitchat (greeting, thanks, etc.) → returns a canned response immediately.
@@ -231,11 +355,11 @@ def chat(req: ChatRequest):
     - `max_tokens` — max tokens in Claude's answer (default 1500, max 15000)
     """
 
-    logger.info("POST /chat — question=%r top_k=%d", req.question, req.top_k)
+    logger.info("[%s] POST /chat — length=%d top_k=%d", request.state.rid, len(req.question), req.top_k)
 
     # Step 1: chitchat shortcut
     if _is_chitchat(req.question):
-        logger.info("Classified as chitchat — returning canned response")
+        logger.info("[%s] Classified as chitchat", request.state.rid)
         return ChatResponse(
             question=req.question,
             answer=CHITCHAT_RESPONSE,
@@ -243,9 +367,17 @@ def chat(req: ChatRequest):
         )
 
     # Step 2: topic relevance
-    logger.info("Checking topic relevance...")
-    if not _is_on_topic(req.question):
-        logger.info("Question classified as off-topic")
+    logger.info("[%s] Checking topic relevance...", request.state.rid)
+    t0 = time.perf_counter()
+    try:
+        on_topic = _is_on_topic(req.question)
+    except Exception as e:
+        logger.error("[%s] Topic check failed: %s", request.state.rid, e)
+        raise HTTPException(status_code=502, detail="Topic classification service unavailable. Please try again.")
+    logger.info("[%s] Topic check: %s (%.0fms)", request.state.rid, on_topic, (time.perf_counter() - t0) * 1000)
+
+    if not on_topic:
+        logger.info("[%s] Off-topic question", request.state.rid)
         return ChatResponse(
             question=req.question,
             answer=(
@@ -259,22 +391,27 @@ def chat(req: ChatRequest):
         )
 
     # Step 3: embed
-    logger.info("Embedding question...")
+    logger.info("[%s] Embedding question...", request.state.rid)
+    t0 = time.perf_counter()
     try:
         q_embedding = _embed(req.question)
+        logger.info("[%s] Embedding complete (%.0fms)", request.state.rid, (time.perf_counter() - t0) * 1000)
     except Exception as e:
-        logger.error("Embedding failed: %s", e)
-        raise HTTPException(status_code=502, detail=f"Embedding service error: {e}")
+        logger.error("[%s] Embedding failed: %s\n%s", request.state.rid, e, traceback.format_exc())
+        raise HTTPException(status_code=502, detail="The embedding service is currently unavailable. Please try again shortly.")
 
     # Step 4: vector search
-    logger.info("Running vector search (top_k=%d)...", req.top_k)
+    logger.info("[%s] Running vector search (top_k=%d)...", request.state.rid, req.top_k)
+    t0 = time.perf_counter()
     try:
         hits = _vector_search(q_embedding, req.top_k)
+        logger.info("[%s] Vector search returned %d hits (%.0fms)", request.state.rid, len(hits), (time.perf_counter() - t0) * 1000)
     except Exception as e:
-        logger.error("Vector search failed: %s", e)
-        raise HTTPException(status_code=502, detail=f"Search service error: {e}")
+        logger.error("[%s] Vector search failed: %s\n%s", request.state.rid, e, traceback.format_exc())
+        raise HTTPException(status_code=502, detail="The knowledge base search service is currently unavailable. Please try again shortly.")
 
     if not hits:
+        logger.info("[%s] No hits returned for question", request.state.rid)
         return ChatResponse(
             question=req.question,
             answer="I couldn't find any relevant content in the knowledge base for that question.",
@@ -290,7 +427,8 @@ def chat(req: ChatRequest):
     context = "\n\n".join(context_blocks)
 
     # Step 6: ask Claude
-    logger.info("Generating answer with Claude (%s)...", CLAUDE_DEPLOYMENT_NAME)
+    logger.info("[%s] Calling Claude (%s)...", request.state.rid, CLAUDE_DEPLOYMENT_NAME)
+    t0 = time.perf_counter()
     try:
         response = claude_client.messages.create(
             model=CLAUDE_DEPLOYMENT_NAME,
@@ -317,8 +455,8 @@ def chat(req: ChatRequest):
             ],
         )
     except Exception as e:
-        logger.error("Claude call failed: %s", e)
-        raise HTTPException(status_code=502, detail=f"LLM service error: {e}")
+        logger.error("[%s] Claude call failed: %s\n%s", request.state.rid, e, traceback.format_exc())
+        raise HTTPException(status_code=502, detail="The AI answer service is currently unavailable. Please try again shortly.")
 
     answer = response.content[0].text
     sources = [
@@ -332,7 +470,10 @@ def chat(req: ChatRequest):
         for h in hits
     ]
 
-    logger.info("Answer generated — %d sources returned", len(sources))
+    logger.info(
+        "[%s] Answer generated — %d sources, %.0fms",
+        request.state.rid, len(sources), (time.perf_counter() - t0) * 1000,
+    )
     return ChatResponse(
         question=req.question,
         answer=answer,
@@ -342,7 +483,8 @@ def chat(req: ChatRequest):
 
 
 @app.post("/search", response_model=SearchResponse, tags=["RAG"])
-def search(req: SearchRequest):
+@limiter.limit("30/minute")
+def search(req: SearchRequest, request: Request, _: None = Depends(require_auth)):
     """
     Run a raw vector search against Azure AI Search without generating an LLM answer.
     Useful for inspecting what chunks would be retrieved for a given query.
@@ -352,19 +494,23 @@ def search(req: SearchRequest):
     - `top_k` — number of results to return (default 5, max 20)
     """
 
-    logger.info("POST /search — query=%r top_k=%d", req.query, req.top_k)
+    logger.info("[%s] POST /search — length=%d top_k=%d", request.state.rid, len(req.query), req.top_k)
 
+    t0 = time.perf_counter()
     try:
         embedding = _embed(req.query)
+        logger.info("[%s] Embedding complete (%.0fms)", request.state.rid, (time.perf_counter() - t0) * 1000)
     except Exception as e:
-        logger.error("Embedding failed: %s", e)
-        raise HTTPException(status_code=502, detail=f"Embedding service error: {e}")
+        logger.error("[%s] Embedding failed: %s\n%s", request.state.rid, e, traceback.format_exc())
+        raise HTTPException(status_code=502, detail="The embedding service is currently unavailable. Please try again shortly.")
 
+    t0 = time.perf_counter()
     try:
         hits = _vector_search(embedding, req.top_k)
+        logger.info("[%s] Search returned %d results (%.0fms)", request.state.rid, len(hits), (time.perf_counter() - t0) * 1000)
     except Exception as e:
-        logger.error("Vector search failed: %s", e)
-        raise HTTPException(status_code=502, detail=f"Search service error: {e}")
+        logger.error("[%s] Vector search failed: %s\n%s", request.state.rid, e, traceback.format_exc())
+        raise HTTPException(status_code=502, detail="The knowledge base search service is currently unavailable. Please try again shortly.")
 
     results = [
         SearchResult(
@@ -377,5 +523,5 @@ def search(req: SearchRequest):
         for h in hits
     ]
 
-    logger.info("Search complete — %d results", len(results))
+    logger.info("[%s] Search complete — %d results", request.state.rid, len(results))
     return SearchResponse(query=req.query, results=results)

@@ -1,1 +1,1 @@
-# hr-assistant
+# TalentGPT

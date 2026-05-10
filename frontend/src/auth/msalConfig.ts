@@ -1,7 +1,7 @@
 import { Configuration, LogLevel } from '@azure/msal-browser'
 
-const CLIENT_ID = 'c8ba4eb1-e66a-422d-8fc8-ec82c942825f'
-const TENANT_ID = '046e8edd-a483-43f1-b6dc-bf3dff8cd6ee'
+const CLIENT_ID = import.meta.env.VITE_CLIENT_ID as string
+const TENANT_ID = import.meta.env.VITE_TENANT_ID as string
 
 export const msalConfig: Configuration = {
   auth: {
@@ -12,7 +12,6 @@ export const msalConfig: Configuration = {
   },
   cache: {
     cacheLocation: 'sessionStorage',
-    storeAuthStateInCookie: false,
   },
   system: {
     loggerOptions: {
